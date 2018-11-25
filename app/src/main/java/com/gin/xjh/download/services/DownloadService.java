@@ -15,6 +15,8 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class DownloadService extends Service {
 
@@ -23,9 +25,10 @@ public class DownloadService extends Service {
                     "/downloads/";
     public static final String ACTION_START = "ACTION_START";
     public static final String ACTION_STOP = "ACTION_STOP";
+    public static final String ACTION_FINISH = "ACTION_FINISH";
     public static final String ACTION_UPDATE = "ACTION_UPDATE";
     public static final int MSG_INIT = 0;
-    private DownloadTask mTask = null;
+    private Map<Integer, DownloadTask> mTasks = new LinkedHashMap<>();
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -34,11 +37,12 @@ public class DownloadService extends Service {
         if (ACTION_START.equals(intent.getAction())) {
             //Log.i("test", "Start:" + fileInfo.toString());
             //启动初始化线程
-            new InitThread(fileInfo).start();
+            DownloadTask.sExecutorService.execute(new InitThread(fileInfo));
         } else if (ACTION_STOP.equals(intent.getAction())) {
-            //Log.i("test", "Stop:" + fileInfo.toString());
-            if(mTask != null){
-                mTask.isPause = true;
+            //从集合中取出下载任务
+            DownloadTask task = mTasks.get(fileInfo.getId());
+            if (task != null) {
+                task.isPause = true;
             }
         }
         return super.onStartCommand(intent, flags, startId);
@@ -58,8 +62,9 @@ public class DownloadService extends Service {
                     FileInfo fileInfo = (FileInfo) msg.obj;
                     //Log.i("test", "Init:" + fileInfo.getLength());
                     //启动下载任务
-                    mTask = new DownloadTask(DownloadService.this,fileInfo);
-                    mTask.download();
+                    DownloadTask task = new DownloadTask(DownloadService.this, fileInfo, 3);
+                    task.download();
+                    mTasks.put(fileInfo.getId(), task);
                     break;
             }
         }

@@ -6,19 +6,20 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
-import android.view.View;
-import android.widget.Button;
-import android.widget.ProgressBar;
-import android.widget.TextView;
+import android.widget.ListView;
+import android.widget.Toast;
 
 import com.gin.xjh.download.entities.FileInfo;
 import com.gin.xjh.download.services.DownloadService;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class MainActivity extends AppCompatActivity {
 
-    private TextView mTvFileName;
-    private ProgressBar mPbProgress;
-    private Button mBtStop, mBtStart;
+    private ListView mLvFile;
+    private List<FileInfo> mFileList;
+    private FileListAdapter mAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,39 +29,34 @@ public class MainActivity extends AppCompatActivity {
         initEvent();
     }
     private void initView() {
-        mTvFileName = findViewById(R.id.tvFileName);
-        mPbProgress = findViewById(R.id.pbProgress);
-        mBtStop = findViewById(R.id.btStop);
-        mBtStart = findViewById(R.id.btStart);
+        mLvFile = findViewById(R.id.lvFile);
     }
 
 
     private void initEvent() {
-        final FileInfo fileInfo = new FileInfo(0, "http://music.163.com/" +
-                "song/media/outer/url?id=557581647.mp3", "一眼一生", 0, 0);
-        mBtStart.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Intent intent = new Intent(MainActivity.this, DownloadService.class);
-                intent.setAction(DownloadService.ACTION_START);
-                intent.putExtra("fileInfo", fileInfo);
-                startService(intent);
-            }
-        });
-        mBtStop.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Intent intent = new Intent(MainActivity.this, DownloadService.class);
-                intent.setAction(DownloadService.ACTION_STOP);
-                intent.putExtra("fileInfo", fileInfo);
-                startService(intent);
-            }
-        });
-        mPbProgress.setMax(100);
+        mFileList = new ArrayList<>();
+        FileInfo fileInfo0 = new FileInfo(0, "http://music.163.com/" +
+                "song/media/outer/url?id=557581647.mp3", "一眼一生", 4806156, 0);//l
+        FileInfo fileInfo1 = new FileInfo(1, "http://music.163.com/" +
+                "song/media/outer/url?id=1313897867.mp3", "不负时代", 2975495, 0);
+        FileInfo fileInfo2 = new FileInfo(2, "http://music.163.com/" +
+                "song/media/outer/url?id=1306386464.mp3", "万王归来", 5232475, 0);
+        FileInfo fileInfo3 = new FileInfo(3, "http://music.163.com/" +
+                "song/media/outer/url?id=531295350.mp3", "越清醒越孤独", 5004687, 0);
+
+        mFileList.add(fileInfo0);
+        mFileList.add(fileInfo1);
+        mFileList.add(fileInfo2);
+        mFileList.add(fileInfo3);
+
         //注册广播接收器
         IntentFilter filter = new IntentFilter();
         filter.addAction(DownloadService.ACTION_UPDATE);
+        filter.addAction(DownloadService.ACTION_FINISH);
         registerReceiver(mReceiver,filter);
+
+        mAdapter = new FileListAdapter(this, mFileList);
+        mLvFile.setAdapter(mAdapter);
     }
 
     @Override
@@ -77,7 +73,13 @@ public class MainActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             if(DownloadService.ACTION_UPDATE.equals(intent.getAction())){
                 int finished = intent.getIntExtra("finished",0);
-                mPbProgress.setProgress(finished);
+                int id = intent.getIntExtra("id", 0);
+                mAdapter.updateProgress(id, finished);
+            } else if (DownloadService.ACTION_FINISH.equals(intent.getAction())) {
+                FileInfo fileInfo = (FileInfo) intent.getSerializableExtra("fileInfo");
+                //更新进度为0
+                mAdapter.updateProgress(fileInfo.getId(), fileInfo.getLength());
+                Toast.makeText(context, mFileList.get(fileInfo.getId()).getFileName() + "下载完毕", Toast.LENGTH_SHORT).show();
             }
         }
     };
