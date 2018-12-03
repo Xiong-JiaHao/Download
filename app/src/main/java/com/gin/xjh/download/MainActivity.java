@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.widget.ListView;
 import android.widget.Toast;
 
@@ -79,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
                 FileInfo fileInfo = (FileInfo) intent.getSerializableExtra("fileInfo");
                 //更新进度为0
                 mAdapter.updateProgress(fileInfo.getId(), fileInfo.getLength());
+                Log.i("xxx", "" + fileInfo.getLength());
                 Toast.makeText(context, mFileList.get(fileInfo.getId()).getFileName() + "下载完毕", Toast.LENGTH_SHORT).show();
             }
         }

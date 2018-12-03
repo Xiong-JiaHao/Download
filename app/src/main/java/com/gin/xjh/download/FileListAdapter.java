@@ -2,6 +2,7 @@ package com.gin.xjh.download;
 
 import android.content.Context;
 import android.content.Intent;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -83,6 +84,7 @@ public class FileListAdapter extends BaseAdapter {
     public void updateProgress(int id, int progress) {
         FileInfo fileInfo = mFileList.get(id);
         fileInfo.setFinished(progress);
+        Log.i("xxx", progress + "");
         notifyDataSetChanged();
     }
 

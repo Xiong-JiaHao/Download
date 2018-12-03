@@ -17,6 +17,8 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -35,9 +37,12 @@ public class DownloadTask {
     private List<DownloadThread> mThreadList;
     public static ExecutorService sExecutorService = Executors.newCachedThreadPool();
 
+    private Timer mTimer = new Timer();//定时器
+
     public DownloadTask(Context mContext, FileInfo mFileInfo) {
         this.mContext = mContext;
         this.mFileInfo = mFileInfo;
+        mFinished = 0;
         mDao = new ThreadDAOImpl(mContext);
     }
 
@@ -45,6 +50,7 @@ public class DownloadTask {
         this.mContext = mContext;
         this.mFileInfo = mFileInfo;
         this.mThreadCount = mThreadCount;
+        mFinished = 0;
         mDao = new ThreadDAOImpl(mContext);
     }
 
@@ -63,12 +69,28 @@ public class DownloadTask {
                 threads.add(threadInfo);
                 mDao.insertThread(threadInfo);
             }
+        } else {
+            for (ThreadInfo thread : threads) {
+                mFinished += thread.getFinished();
+            }
         }
+
+        //启动定时任务
+        mTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                //保存下载进度
+                Intent intent = new Intent(DownloadService.ACTION_UPDATE);
+                intent.putExtra("finished", mFinished);
+                intent.putExtra("id", mFileInfo.getId());
+                mContext.sendBroadcast(intent);
+            }
+        }, 0, 300);
+
         //创建多个子线程进行下载
         mThreadList = new ArrayList<>();
         for (ThreadInfo info : threads) {
             DownloadThread thread = new DownloadThread(info);
-            //thread.start();
             DownloadTask.sExecutorService.execute(thread);
             //添加线程到集合中
             mThreadList.add(thread);
@@ -87,6 +109,7 @@ public class DownloadTask {
             }
         }
         if (allFinished) {
+            mTimer.cancel();
             //删除线程信息
             mDao.deleteThread(mFileInfo.getUrl());
             //通知UI下载结束
@@ -126,14 +149,11 @@ public class DownloadTask {
                 raf = new RandomAccessFile(file, "rwd");
                 raf.seek(start);
                 //开始下载
-                mFinished += mThreadInfo.getFinished();
-                Intent intent = new Intent(DownloadService.ACTION_UPDATE);
                 if (conn.getResponseCode() == HttpURLConnection.HTTP_PARTIAL) {
                     //读取数据
                     input = conn.getInputStream();
                     byte[] buffer = new byte[1024 * 4];
                     int len = -1;
-                    long time = System.currentTimeMillis();
                     while ((len = input.read(buffer)) != -1) {
                         //写入文件
                         raf.write(buffer, 0, len);
@@ -142,19 +162,9 @@ public class DownloadTask {
                         mFinished += len;
                         //每个线程的下载进度
                         mThreadInfo.setFinished(mThreadInfo.getFinished() + len);
-                        if (System.currentTimeMillis() - time > 500) {
-                            time = System.currentTimeMillis();
-                            //保存下载进度
-                            mDao.updateThread(mFileInfo.getUrl(), mThreadInfo.getId(), mThreadInfo.getFinished());
-                            intent.putExtra("finished", mFinished);
-                            intent.putExtra("id", mFileInfo.getId());
-                            mContext.sendBroadcast(intent);
-                            if(isPause){
-                                return;
-                            }
-                        }
                         //在暂停时保存下载进度
                         if (isPause) {
+                            mTimer.cancel();
                             mDao.updateThread(mFileInfo.getUrl(), mThreadInfo.getId(), mThreadInfo.getFinished());
                             return;
                         }
