@@ -1,8 +1,9 @@
 package com.gin.xjh.download;
 
 import android.content.Context;
-import android.content.Intent;
-import android.util.Log;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.RemoteException;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -20,10 +21,15 @@ public class FileListAdapter extends BaseAdapter {
 
     private Context mContext;
     private List<FileInfo> mFileList;
+    private Messenger mMessenger = null;
 
     public FileListAdapter(Context mContext, List<FileInfo> mFileList) {
         this.mContext = mContext;
         this.mFileList = mFileList;
+    }
+
+    public void setmMessenger(Messenger mMessenger) {
+        this.mMessenger = mMessenger;
     }
 
     @Override
@@ -54,23 +60,31 @@ public class FileListAdapter extends BaseAdapter {
             holder.tvFile = view.findViewById(R.id.tvFileName);
             //设置控件
             holder.tvFile.setText(fileInfo.getFileName());
-            holder.pbFile.setMax(fileInfo.getLength());
+            holder.pbFile.setMax(100);
             holder.btStart.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    Intent intent = new Intent(mContext, DownloadService.class);
-                    intent.setAction(DownloadService.ACTION_START);
-                    intent.putExtra("fileInfo", fileInfo);
-                    mContext.startService(intent);
+                    Message msg = new Message();
+                    msg.what = DownloadService.MSG_START;
+                    msg.obj = fileInfo;
+                    try {
+                        mMessenger.send(msg);
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
+                    }
                 }
             });
             holder.btStop.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    Intent intent = new Intent(mContext, DownloadService.class);
-                    intent.setAction(DownloadService.ACTION_STOP);
-                    intent.putExtra("fileInfo", fileInfo);
-                    mContext.startService(intent);
+                    Message msg = new Message();
+                    msg.what = DownloadService.MSG_STOP;
+                    msg.obj = fileInfo;
+                    try {
+                        mMessenger.send(msg);
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
+                    }
                 }
             });
             view.setTag(holder);
@@ -84,7 +98,6 @@ public class FileListAdapter extends BaseAdapter {
     public void updateProgress(int id, int progress) {
         FileInfo fileInfo = mFileList.get(id);
         fileInfo.setFinished(progress);
-        Log.i("xxx", progress + "");
         notifyDataSetChanged();
     }
 

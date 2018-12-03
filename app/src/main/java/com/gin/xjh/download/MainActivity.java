@@ -1,12 +1,16 @@
 package com.gin.xjh.download;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
+import android.app.Service;
+import android.content.ComponentName;
 import android.content.Intent;
-import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.RemoteException;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.widget.ListView;
 import android.widget.Toast;
 
@@ -21,6 +25,7 @@ public class MainActivity extends AppCompatActivity {
     private ListView mLvFile;
     private List<FileInfo> mFileList;
     private FileListAdapter mAdapter;
+    private Messenger mServiceMessenger = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,38 +55,57 @@ public class MainActivity extends AppCompatActivity {
         mFileList.add(fileInfo2);
         mFileList.add(fileInfo3);
 
-        //注册广播接收器
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(DownloadService.ACTION_UPDATE);
-        filter.addAction(DownloadService.ACTION_FINISH);
-        registerReceiver(mReceiver,filter);
 
         mAdapter = new FileListAdapter(this, mFileList);
         mLvFile.setAdapter(mAdapter);
+
+        //绑定Service
+        Intent intent = new Intent(this, DownloadService.class);
+        bindService(intent, mConnection, Service.BIND_AUTO_CREATE);
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        unregisterReceiver(mReceiver);
-    }
-
-    /**
-     * 更新进度条的广播接收器
-     */
-    BroadcastReceiver mReceiver = new BroadcastReceiver() {
+    ServiceConnection mConnection = new ServiceConnection() {
         @Override
-        public void onReceive(Context context, Intent intent) {
-            if(DownloadService.ACTION_UPDATE.equals(intent.getAction())){
-                int finished = intent.getIntExtra("finished",0);
-                int id = intent.getIntExtra("id", 0);
-                mAdapter.updateProgress(id, finished);
-            } else if (DownloadService.ACTION_FINISH.equals(intent.getAction())) {
-                FileInfo fileInfo = (FileInfo) intent.getSerializableExtra("fileInfo");
-                //更新进度为0
-                mAdapter.updateProgress(fileInfo.getId(), fileInfo.getLength());
-                Log.i("xxx", "" + fileInfo.getLength());
-                Toast.makeText(context, mFileList.get(fileInfo.getId()).getFileName() + "下载完毕", Toast.LENGTH_SHORT).show();
+        public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
+            //获得Service中的Messenger
+            mServiceMessenger = new Messenger(iBinder);
+            //设置适配器中的Messenger
+            mAdapter.setmMessenger(mServiceMessenger);
+            //创建Activity中的Messenger
+            Messenger messenger = new Messenger(mHandler);
+            //创建消息
+            Message msg = new Message();
+            msg.what = DownloadService.MSG_BIND;
+            msg.replyTo = messenger;
+            //使用Service的Messenger发送Activity中的Messenger
+            try {
+                mServiceMessenger.send(msg);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+
+        }
+    };
+
+    Handler mHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case DownloadService.MSG_UPDATE:
+                    int finished = msg.arg1;
+                    int id = msg.arg2;
+                    mAdapter.updateProgress(id, finished);
+                    break;
+                case DownloadService.MSG_FINISH:
+                    FileInfo fileInfo = (FileInfo) msg.obj;
+                    //更新进度为0
+                    mAdapter.updateProgress(fileInfo.getId(), fileInfo.getLength());
+                    Toast.makeText(MainActivity.this, mFileList.get(fileInfo.getId()).getFileName() + "下载完毕", Toast.LENGTH_SHORT).show();
+                    break;
             }
         }
     };
